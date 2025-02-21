@@ -8,7 +8,7 @@
     <name>SuperRun</name>
 
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
-    <vendor email="joeabk@gmail.com" url="https://www.yourcompany.com">JOE</vendor>
+    <vendor email="joeabk@gmail.com">JOE</vendor>
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.modules.platform</depends>
