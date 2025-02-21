@@ -1,0 +1,44 @@
+plugins {
+    id 'java'
+    id 'org.jetbrains.intellij' version '1.13.3'
+}
+
+group = "com.joeabk"
+version = "1.0-SNAPSHOT"
+
+repositories {
+    mavenCentral()
+}
+
+// Configure IntelliJ Plugin
+intellij {
+    version = "2022.2.5" // Target IntelliJ version
+    type = "IC" // IntelliJ Community Edition (use "IU" for Ultimate)
+    plugins = [] // Add dependencies if needed
+}
+
+// ✅ Set Java 17 to Fix "Unsupported class file major version 65"
+java {
+    toolchain.languageVersion.set(JavaLanguageVersion.of(17))
+}
+
+// ✅ Corrected syntax for JavaCompile task (Groovy DSL)
+tasks.withType(JavaCompile).configureEach {
+    sourceCompatibility = '17'
+    targetCompatibility = '17'
+}
+
+patchPluginXml {
+    sinceBuild.set("222")
+    untilBuild.set("232.*")
+}
+
+signPlugin {
+    certificateChain.set(System.getenv("CERTIFICATE_CHAIN"))
+    privateKey.set(System.getenv("PRIVATE_KEY"))
+    password.set(System.getenv("PRIVATE_KEY_PASSWORD"))
+}
+
+publishPlugin {
+    token.set(System.getenv("PUBLISH_TOKEN"))
+}
