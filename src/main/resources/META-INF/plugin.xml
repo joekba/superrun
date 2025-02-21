@@ -1,0 +1,32 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
+    <id>com.joeabk.SuperRun</id>
+
+    <!-- Public plugin name should be written in Title Case.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-name -->
+    <name>SuperRun</name>
+
+    <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
+    <vendor email="joeabk@gmail.com" url="https://www.yourcompany.com">JOE</vendor>
+    <!-- Product and plugin compatibility requirements.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
+    <depends>com.intellij.modules.platform</depends>
+
+    <!-- Extension points defined by the plugin.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
+    <extensions defaultExtensionNs="com.intellij">
+        <projectService serviceImplementation="com.joeabk.superrun.SuperRunSettings"/>
+
+    </extensions>
+
+    <actions>
+        <action id="SuperRun"
+                class="com.joeabk.superrun.SuperRunAction"
+                text="SuperRun"
+                description="Run multiple services with debug options"
+                icon="/META-INF/pluginIcon.svg">
+            <add-to-group group-id="MainToolBar" anchor="before" relative-to-action="ToolsMenu"/>
+        </action>
+    </actions>
+</idea-plugin>
