@@ -9,15 +9,18 @@
 
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
     <vendor email="joeabk@gmail.com">JOE</vendor>
+
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.modules.platform</depends>
+
+    <!-- Define compatible IDE versions -->
+    <idea-version since-build="232.0" until-build="243.*" />
 
     <!-- Extension points defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
         <projectService serviceImplementation="com.joeabk.superrun.SuperRunSettings"/>
-
     </extensions>
 
     <actions>

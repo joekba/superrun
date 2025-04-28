@@ -31,5 +31,7 @@ public class SuperRunSettings implements PersistentStateComponent<SuperRunSettin
 
     public static class State {
         public List<String> configurationOrder = new ArrayList<>();
+        public List<String> runSelections = new ArrayList<>();
+        public List<String> debugSelections = new ArrayList<>();
     }
 }

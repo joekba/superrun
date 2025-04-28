@@ -12,6 +12,8 @@ import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
+import com.intellij.openapi.ui.JBMenuItem;
+import com.intellij.openapi.ui.JBPopupMenu;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.JBUI;
@@ -20,10 +22,9 @@ import com.intellij.util.ui.UIUtil;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,10 +40,85 @@ public class SuperRunAction extends AnAction {
         Project project = e.getProject();
         if (project == null) return;
 
+        // Check if a configuration has been saved before
+        SuperRunSettings settings = SuperRunSettings.getInstance(project);
+        if (settings != null && (!settings.getState().runSelections.isEmpty() || !settings.getState().debugSelections.isEmpty())) {
+            // Show the popup menu with two options
+            showPopupMenu(project, e);
+        } else {
+            // No saved config, open the dialog directly
+            editConfigAndRun(project, e);
+        }
+    }
+
+    private void runWithExistingConfig(Project project) {
+        SuperRunSettings settings = SuperRunSettings.getInstance(project);
+        if (settings == null || (settings.getState().runSelections.isEmpty() && settings.getState().debugSelections.isEmpty())) {
+            return;
+        }
+
+        RunManager runManager = RunManager.getInstance(project);
+        List<RunnerAndConfigurationSettings> allConfigurations = runManager.getAllSettings();
+        allConfigurations = allConfigurations.stream()
+                .filter(data -> data.getUniqueID().contains("Application"))
+                .collect(Collectors.toList());
+
+        // Create a map for quick lookup of configurations by their ID
+        Map<String, RunnerAndConfigurationSettings> configMap = new HashMap<>();
+        for (RunnerAndConfigurationSettings config : allConfigurations) {
+            configMap.put(config.getUniqueID(), config);
+        }
+
+        // Get the saved order
+        List<String> savedOrder = settings.getState().configurationOrder;
+
+        // We'll use LinkedHashMap to maintain insertion order
+        Map<RunnerAndConfigurationSettings, Boolean> selectedConfigs = new LinkedHashMap<>();
+
+        // First add configurations that are in the saved order
+        for (String configId : savedOrder) {
+            if (settings.getState().runSelections.contains(configId)) {
+                RunnerAndConfigurationSettings config = configMap.get(configId);
+                if (config != null) {
+                    selectedConfigs.put(config, false);
+                }
+            } else if (settings.getState().debugSelections.contains(configId)) {
+                RunnerAndConfigurationSettings config = configMap.get(configId);
+                if (config != null) {
+                    selectedConfigs.put(config, true);
+                }
+            }
+        }
+
+        // Then add any remaining selected configurations that might not be in the saved order
+        for (String configId : settings.getState().runSelections) {
+            if (!savedOrder.contains(configId)) {
+                RunnerAndConfigurationSettings config = configMap.get(configId);
+                if (config != null) {
+                    selectedConfigs.put(config, false);
+                }
+            }
+        }
+        for (String configId : settings.getState().debugSelections) {
+            if (!savedOrder.contains(configId)) {
+                RunnerAndConfigurationSettings config = configMap.get(configId);
+                if (config != null) {
+                    selectedConfigs.put(config, true);
+                }
+            }
+        }
+
+        if (!selectedConfigs.isEmpty()) {
+            executeConfigurations(project, selectedConfigs, 5);
+        }
+    }
+
+    private void editConfigAndRun(Project project, AnActionEvent e) {
         // Get all run configurations
         RunManager runManager = RunManager.getInstance(project);
         List<RunnerAndConfigurationSettings> allConfigurations = runManager.getAllSettings();
-        allConfigurations = allConfigurations.stream().filter(data -> data.getUniqueID().contains("Application"))
+        allConfigurations = allConfigurations.stream()
+                .filter(data -> data.getUniqueID().contains("Application"))
                 .collect(Collectors.toList());
 
         // Show configuration selection dialog
@@ -85,6 +161,26 @@ public class SuperRunAction extends AnAction {
             delay += delaySeconds; // Add delay for the next configuration
         }
     }
+
+    private void showPopupMenu(Project project, AnActionEvent e) {
+        JBPopupMenu popupMenu = new JBPopupMenu();
+
+        // Option 1: Run with existing config
+        JBMenuItem runWithExistingConfig = new JBMenuItem("Run with existing config");
+        runWithExistingConfig.addActionListener(event -> runWithExistingConfig(project));
+        popupMenu.add(runWithExistingConfig);
+
+        // Option 2: Edit config and run
+        JBMenuItem editConfigAndRun = new JBMenuItem("Edit config and run");
+        editConfigAndRun.addActionListener(event -> editConfigAndRun(project, e));
+        popupMenu.add(editConfigAndRun);
+
+        // Show the popup menu near the plugin icon
+        Component component = e.getInputEvent().getComponent();
+        if (component instanceof JComponent) {
+            popupMenu.show((JComponent) component, 0, component.getHeight());
+        }
+    }
 }
 
 class StyledPanel extends JPanel {
@@ -123,7 +219,7 @@ class ServiceSelectionDialog extends DialogWrapper {
             }
         };
 
-        // Load saved order
+        // Load saved order and selections
         SuperRunSettings settings = SuperRunSettings.getInstance(project);
         if (settings != null) {
             List<String> savedOrder = settings.getState().configurationOrder;
@@ -135,33 +231,76 @@ class ServiceSelectionDialog extends DialogWrapper {
                     return Integer.compare(indexA, indexB);
                 });
             }
-        }
 
-        // Populate table model with configurations
-        for (RunnerAndConfigurationSettings config : configurations) {
-            tableModel.addRow(new Object[]{config.getConfiguration().getName(), false, false});
+            // Populate table model with configurations
+            for (RunnerAndConfigurationSettings config : configurations) {
+                String configId = config.getUniqueID();
+                boolean runSelected = settings.getState().runSelections.contains(configId);
+                boolean debugSelected = settings.getState().debugSelections.contains(configId);
+                tableModel.addRow(new Object[]{config.getConfiguration().getName(), runSelected, debugSelected});
+            }
+        } else {
+            // If no settings, just add all configurations with unchecked boxes
+            for (RunnerAndConfigurationSettings config : configurations) {
+                tableModel.addRow(new Object[]{config.getConfiguration().getName(), false, false});
+            }
         }
 
         // Create table
         table = new JBTable(tableModel);
-        table.setRowSelectionAllowed(true); // Allow row selection
-        table.setFocusable(true); // Ensure the table is focusable
+        table.setRowSelectionAllowed(true);
+        table.setFocusable(true);
 
-        // Add double-click listener
-        table.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                System.out.println("Mouse clicked: " + e.getClickCount()); // Debug statement
-                if (e.getClickCount() == 2) { // Double-click
-                    System.out.println("Double-click detected"); // Debug statement
-                    editSelectedConfiguration();
+        // Add TableModelListener to prevent Run and Debug checkboxes from being selected simultaneously
+        tableModel.addTableModelListener(e -> {
+            int row = e.getFirstRow();
+            int column = e.getColumn();
+
+            // Only handle changes in the Run (column 1) or Debug (column 2) columns
+            if (column == 1 || column == 2) {
+                boolean runSelected = (Boolean) tableModel.getValueAt(row, 1);
+                boolean debugSelected = (Boolean) tableModel.getValueAt(row, 2);
+
+                // If both Run and Debug are selected, uncheck the other one
+                if (runSelected && debugSelected) {
+                    if (column == 1) {
+                        tableModel.setValueAt(false, row, 2); // Uncheck Debug
+                    } else {
+                        tableModel.setValueAt(false, row, 1); // Uncheck Run
+                    }
                 }
             }
         });
 
-
         init();
         setTitle("Select Services to Run");
+    }
+
+    @Override
+    protected void doOKAction() {
+        // Save checkbox selections
+        SuperRunSettings settings = SuperRunSettings.getInstance(project);
+        if (settings != null) {
+            List<String> runSelections = new ArrayList<>();
+            List<String> debugSelections = new ArrayList<>();
+
+            for (int i = 0; i < configurations.size(); i++) {
+                String configId = configurations.get(i).getUniqueID();
+                boolean runSelected = (Boolean) tableModel.getValueAt(i, 1);
+                boolean debugSelected = (Boolean) tableModel.getValueAt(i, 2);
+
+                if (runSelected) {
+                    runSelections.add(configId);
+                } else if (debugSelected) {
+                    debugSelections.add(configId);
+                }
+            }
+
+            settings.getState().runSelections = runSelections;
+            settings.getState().debugSelections = debugSelections;
+            saveConfigurationOrder();
+        }
+        super.doOKAction();
     }
 
     @Override
@@ -222,37 +361,6 @@ class ServiceSelectionDialog extends DialogWrapper {
         saveConfigurationOrder();
     }
 
-    private void editSelectedConfiguration() {
-        int selectedRow = table.getSelectedRow();
-        if (selectedRow < 0) {
-            System.out.println("No valid row selected"); // Debug statement
-            return;
-        }
-
-        int modelRow = table.convertRowIndexToModel(selectedRow);
-        if (modelRow >= configurations.size()) {
-            System.out.println("Invalid row index: " + modelRow);
-            return;
-        }
-
-        RunnerAndConfigurationSettings selectedConfig = configurations.get(modelRow);
-        if (selectedConfig == null) {
-            System.out.println("Selected configuration is null");
-            return;
-        }
-
-        System.out.println("Selected configuration: " + selectedConfig.getName()); // Debug statement
-
-        // Set the selected configuration as the active configuration
-        RunManager runManager = RunManager.getInstance(project);
-        runManager.setSelectedConfiguration(selectedConfig);
-
-        // Open the Run Configuration Editor
-        EditConfigurationsDialog dialog = new EditConfigurationsDialog(project);
-        dialog.show(); // This should now open with the selected config preselected
-    }
-
-
     public Map<RunnerAndConfigurationSettings, Boolean> getSelectedConfigurations() {
         Map<RunnerAndConfigurationSettings, Boolean> selected = new LinkedHashMap<>();
 
@@ -272,12 +380,10 @@ class ServiceSelectionDialog extends DialogWrapper {
         return (int) delaySpinner.getValue();
     }
 
-    // Getter for configurations
     public List<RunnerAndConfigurationSettings> getConfigurations() {
         return configurations;
     }
 
-    // Save the order of configurations
     public void saveConfigurationOrder() {
         SuperRunSettings settings = SuperRunSettings.getInstance(project);
         if (settings != null) {
